@@ -125,10 +125,13 @@
       var visible = rect.width >= 80 && rect.height >= 80 &&
         style.visibility !== 'hidden' && style.display !== 'none' &&
         Number(style.opacity) !== 0;
+      var inViewport = visible && rect.bottom > 0 && rect.top < window.innerHeight &&
+        rect.right > 0 && rect.left < window.innerWidth;
       return {
         video: video,
         index: index,
         visible: visible,
+        inViewport: inViewport,
         area: rect.width * rect.height,
         top: rect.top,
         playing: !video.paused && video.readyState >= 2
@@ -136,6 +139,10 @@
     }).filter(function (item) { return item.visible; });
 
     if (!candidates.length) return null;
+
+    var inViewport = candidates.filter(function (item) { return item.inViewport; });
+    if (!inViewport.length) return null;
+    candidates = inViewport;
 
     candidates.sort(function (a, b) {
       if (a.playing !== b.playing) return a.playing ? -1 : 1;
@@ -412,7 +419,7 @@
       }
 
       requestPageDataButton(currentPinId);
-      removeHost();
+      ensureFloatingButton();
       return;
     }
 
@@ -593,6 +600,7 @@
     window.addEventListener('popstate', function () { requestSync(50); });
     window.addEventListener('hashchange', function () { requestSync(50); });
     window.addEventListener('resize', function () { requestSync(100); });
+    window.addEventListener('scroll', function () { requestSync(120); }, { passive: true });
 
     setInterval(function () {
       if (location.href !== lastHref) {

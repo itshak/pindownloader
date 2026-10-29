@@ -116,7 +116,7 @@ No remote server, analytics, or credentials are used.
   fixed bottom-right control so it stays visible. Standard pins keep the button below the video.
 - If Chrome exposes only a `blob:` video URL or the `<video>` element is unmeasurable, a matched
   page video or the presence of any `<video>` still creates the fixed button. As a final fallback,
-  the extension fetches the pin HTML and creates a fixed button if that page contains a video.
+  every pin URL gets a fixed button even if no player or page video can be detected.
 - The UI is localized in English and Russian. Russian is selected when Chrome's UI/system
   language or the browser locale starts with `ru`.
 
@@ -179,6 +179,8 @@ Completed on 2026-10-29:
   720p MP4 with audio.
 - Missing player and missing inline page data — fetching the pin HTML created the visible fixed
   button, which downloaded the 720p MP4 with audio.
+- Missing player, page data, and inline video — the unconditional pin-page fallback still created
+  a visible fixed button.
 - Media type — the story pin is a 13.16s H.264/AAC MP4, not a GIF.
 
 Note: live testing used Pinterest's mobile layout because the logged-out desktop page is gated by
