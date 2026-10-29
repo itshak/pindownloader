@@ -71,8 +71,34 @@
     return Math.max(0, rect.width) * Math.max(0, rect.height);
   }
 
+  function findCloseupRoots() {
+    var selectors = [
+      '[data-test-id="CloseupMainPin"]',
+      '[data-test-id="pin-closeup"]',
+      '[data-test-id*="closeup" i]'
+    ];
+    var roots = [];
+    selectors.forEach(function (selector) {
+      Array.prototype.forEach.call(document.querySelectorAll(selector), function (element) {
+        if (!roots.some(function (root) { return root === element || root.contains(element); })) {
+          roots.push(element);
+        }
+      });
+    });
+    return roots;
+  }
+
   function findBestVideo() {
     var videos = Array.prototype.slice.call(document.querySelectorAll('video'));
+    var roots = findCloseupRoots();
+    if (roots.length) {
+      var closeupVideos = videos.filter(function (video) {
+        return roots.some(function (root) { return root.contains(video); });
+      });
+      if (!closeupVideos.length) return null;
+      videos = closeupVideos;
+    }
+
     var candidates = videos.map(function (video, index) {
       var rect = video.getBoundingClientRect();
       var style = getComputedStyle(video);

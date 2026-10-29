@@ -1,5 +1,11 @@
 # PinDownloader — Implementation Plan
 
+## Status
+
+Implemented and tested. The extension loads as an unpacked Manifest V3 extension, injects a
+Shadow DOM button below the active pin video, extracts the MP4 URL, and downloads a file with
+H.264 video and AAC audio.
+
 ## Goal
 
 A Chrome Manifest V3 extension that adds a **Download video** button below the video inside a
@@ -122,16 +128,36 @@ No remote server, analytics, or credentials are used.
 ## Test plan
 
 - Unit tests:
-  - Parse the saved sample HTML and select the 720p progressive MP4.
-  - Sanitize titles and reject invalid/non-pinimg URLs.
-  - Derive a progressive MP4 URL from the sample HLS master playlist.
+  - Parse relay page data and select the 720p progressive MP4.
+  - Keep HLS only when no progressive MP4 is available.
+  - Do not associate another pin's video with the current pin.
+  - Sanitize titles, validate URLs, and reject non-pin URLs/media hosts.
 - Browser smoke test:
   - Pin page shows the button below the video.
   - Button is absent on a non-pin page.
   - Clicking downloads a playable file with audio (verified via `ffprobe`).
-  - Navigating between pins via SPA updates/removes the button correctly.
-- Manual edge cases: slow loading, HLS-only media, re-render, long/unicode titles, refresh,
-  multiple Pinterest tabs.
+  - HLS-only page data resolves to a progressive MP4 and downloads with audio.
+  - Navigating between pin/search URLs via SPA updates/removes the button correctly.
+- Manual edge cases: slow loading, re-render, long/unicode titles, refresh, multiple tabs.
+
+## Verification results
+
+Completed on 2026-10-29:
+
+- `npm test` — 6/6 unit tests passed.
+- Playwright E2E, direct MP4 path — button appeared below the player, Chrome download completed,
+  `ffprobe` reported H.264 720×1280 video and 44.1 kHz stereo AAC audio.
+- Playwright E2E, HLS-only path — HLS master playlist resolved to the 720p `expMp4` URL;
+  downloaded file again contained H.264 video and stereo AAC audio.
+- Playwright E2E, live Pinterest pin (`529524868708976544`) — the button rendered inside
+  `CloseupMainPin` below the real video and the downloaded file passed the same `ffprobe` checks.
+- Pin-only gating — button was removed on a search URL and returned after SPA navigation back to
+  the pin.
+- Filename generation — unit-tested to produce `Pinterest/<title>_<pinId>_<quality>.mp4` with
+  filesystem-unsafe characters removed.
+
+Note: live testing used Pinterest's mobile layout because the logged-out desktop page is gated by
+a login modal. Desktop-style injection was verified with a browser fixture using a 420×630 player.
 
 ## Acceptance criteria
 
@@ -143,15 +169,23 @@ No remote server, analytics, or credentials are used.
 
 ## Install (development)
 
-1. Open `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Click **Load unpacked** and select this `pindownloader` folder.
-4. Open a Pinterest pin with a video and use **Download video** below the player.
+1. Download or clone this repository.
+2. Open `chrome://extensions` in Chrome.
+3. Enable **Developer mode** (top-right).
+4. Click **Load unpacked** and select the `pindownloader` folder containing `manifest.json`.
+5. Open a Pinterest pin URL such as `https://www.pinterest.com/pin/529524868708976544/`
+   and scroll to the video.
+6. Click **Download video** directly below the player.
+7. The MP4 is saved under the browser's Downloads directory in a `Pinterest/` folder.
+
+After changing extension files, click the reload icon for PinDownloader on
+`chrome://extensions`, then refresh the Pinterest tab. The button is intentionally not shown on
+search, home, or other multi-pin pages.
 
 ## Risks and limitations
 
 - Pinterest DOM/JSON structure is not public and may change; multiple fallbacks reduce breakage.
-- Some videos may be HLS-only with separate audio; these require an ffmpeg-based merge and are
-  intentionally reported as unsupported in v1 rather than saved without audio.
+- Some videos may not expose a progressive MP4; those cannot be saved with audio without an
+  ffmpeg-based merge and are reported as unsupported rather than saved without audio.
 - Downloading content may be restricted by copyright and Pinterest's terms. Use for content you
   have rights to.

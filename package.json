@@ -1,0 +1,9 @@
+{
+  "name": "pindownloader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome extension that downloads Pinterest pin videos with audio.",
+  "scripts": {
+    "test": "node --test tests/unit.test.js"
+  }
+}
