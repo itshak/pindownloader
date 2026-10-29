@@ -26,6 +26,11 @@
   var pageCache = null;
   var pageDataTarget = null;
   var pageDataCheckedAt = 0;
+  var pageDataCandidate = null;
+  var pageFetchInFlight = false;
+  var pageFetchPin = null;
+  var pageFetchAt = 0;
+  var pageFetchAttempts = 0;
   var downloadInFlight = false;
 
   function sendMessage(message) {
@@ -65,6 +70,11 @@
     pageCache = null;
     pageDataTarget = null;
     pageDataCheckedAt = 0;
+    pageDataCandidate = null;
+    pageFetchInFlight = false;
+    pageFetchPin = null;
+    pageFetchAt = 0;
+    pageFetchAttempts = 0;
     removeHost();
     clearTabMedia();
   }
@@ -208,9 +218,9 @@
     host.style.margin = '12px auto 4px auto';
   }
 
-  function findPageDataTarget(pinId) {
-    if (pageDataTarget && pageDataTarget.pinId === pinId && pageDataTarget.target.isConnected) {
-      return pageDataTarget.target;
+  function findDocumentPageCandidate(pinId) {
+    if (pageDataCandidate && pageDataCandidate.pinId === pinId) {
+      return pageDataCandidate.candidate;
     }
 
     var now = Date.now();
@@ -224,6 +234,16 @@
       return null;
     }
     if (!candidate || !candidate.matched) return null;
+
+    pageDataCandidate = { pinId: pinId, candidate: candidate };
+    return candidate;
+  }
+
+  function findPageDataTarget(pinId) {
+    if (pageDataTarget && pageDataTarget.pinId === pinId && pageDataTarget.target.isConnected) {
+      return pageDataTarget.target;
+    }
+    if (!findDocumentPageCandidate(pinId)) return null;
 
     var target = null;
     var roots = findCloseupRoots();
@@ -254,11 +274,54 @@
     return target;
   }
 
-  function ensureButton(target, forceFloat) {
+  function createHost() {
     if (!host) {
       ui = UI.createButton(handleDownloadClick);
       host = ui.host;
     }
+    return host;
+  }
+
+  function ensureFloatingButton() {
+    createHost();
+    setButtonLayout(null, true);
+    if (host.parentNode !== document.body) document.body.appendChild(host);
+    hostAnchor = {
+      target: null,
+      parent: document.body,
+      nextSibling: host.nextSibling,
+      floating: true
+    };
+  }
+
+  function requestPageDataButton(pinId) {
+    var now = Date.now();
+    if (pageFetchInFlight || pageFetchAttempts >= 3) return;
+    if (pageFetchPin === pinId && now - pageFetchAt < 15000) return;
+
+    pageFetchInFlight = true;
+    pageFetchPin = pinId;
+    pageFetchAt = now;
+    pageFetchAttempts += 1;
+
+    fetchPinCandidate(pinId)
+      .then(function (candidate) {
+        pageFetchInFlight = false;
+        if (currentPinId !== pinId || !candidate || !candidate.matched) return;
+        if (host && host.isConnected) return;
+        if (findBestVideo()) {
+          requestSync(20);
+          return;
+        }
+        ensureFloatingButton();
+      })
+      .catch(function () {
+        pageFetchInFlight = false;
+      });
+  }
+
+  function ensureButton(target, forceFloat) {
+    createHost();
 
     var targetRect = target.getBoundingClientRect();
     var floating = Boolean(forceFloat) || shouldFloatButton(target, targetRect);
@@ -343,6 +406,12 @@
         return;
       }
 
+      if (findDocumentPageCandidate(currentPinId) || document.querySelector('video')) {
+        ensureFloatingButton();
+        return;
+      }
+
+      requestPageDataButton(currentPinId);
       removeHost();
       return;
     }
