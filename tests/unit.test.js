@@ -62,6 +62,49 @@ test('extracts the current pin progressive MP4 from relay page data', () => {
   assert.equal(candidate.title, 'Feliz día de la madre');
 });
 
+test('extracts story pin HLS from videoDataV2 data', () => {
+  const storyHlsUrl =
+    'https://v1.pinimg.com/videos/iht/hls/6c/51/c7/6c51c7c629c88b11e24cfda24476fa97.m3u8';
+  const payload = {
+    data: {
+      v3GetPinQueryv2: {
+        data: {
+          entityId: '1040753795155689812',
+          seoTitle: 'Рыжие котята | Милый мультфильм',
+          videos: null,
+          storyPinData: {
+            pages: [{
+              blocks: [{
+                videoDataV2: {
+                  videoList: {
+                    vHLSV3MOBILE: {
+                      url: storyHlsUrl,
+                      width: 1080,
+                      height: 1920
+                    }
+                  },
+                  v_hlsv4_video_list: {
+                    vHLSV4: { url: storyHlsUrl, width: 1080, height: 1920 }
+                  }
+                }
+              }]
+            }]
+          }
+        }
+      }
+    }
+  };
+
+  const doc = makeDocument(relayCall(payload), 'Рыжие котята | Pinterest');
+  const candidate = Extractor.extractFromDocument(doc, '1040753795155689812');
+
+  assert.ok(candidate, 'story pin candidate should be extracted');
+  assert.equal(candidate.url, storyHlsUrl);
+  assert.equal(candidate.kind, 'hls');
+  assert.equal(candidate.matched, true);
+  assert.equal(candidate.title, 'Рыжие котята | Милый мультфильм');
+});
+
 test('keeps HLS as a fallback when no progressive MP4 exists', () => {
   const payload = {
     data: {

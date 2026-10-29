@@ -238,6 +238,23 @@
     }
   }
 
+  function collectVideoUrlStrings(value, matched, title, result) {
+    if (!value || typeof value !== 'object') return;
+
+    Object.keys(value).forEach(function (key) {
+      var child = value[key];
+      if (typeof child === 'string') {
+        addUrl(result, child, {
+          matched: matched,
+          title: title,
+          source: 'pin-data'
+        });
+      } else if (child && typeof child === 'object') {
+        collectVideoUrlStrings(child, matched, title, result);
+      }
+    });
+  }
+
   function collectFromPayload(payload, pinId) {
     var matched = [];
     var unmatched = [];
@@ -253,6 +270,7 @@
       if (entityId && entityId === pinId) {
         isCurrent = true;
         title = pickTitle(value) || title;
+        collectVideoUrlStrings(value, true, title, matched);
       }
 
       if (isCurrent) {
@@ -271,6 +289,38 @@
 
     visit(payload, false, '');
     return { matched: matched, unmatched: unmatched, titleHints: titleHints };
+  }
+
+  function parseLooseObjectByKey(text, key, pinId) {
+    var result = [];
+    var searchFrom = 0;
+
+    while (searchFrom < text.length) {
+      var keyIndex = text.indexOf(key, searchFrom);
+      if (keyIndex === -1) break;
+
+      var colon = text.indexOf(':', keyIndex + key.length);
+      if (colon === -1) break;
+
+      var objectStart = skipWhitespace(text, colon + 1);
+      if (text[objectStart] !== '{') {
+        searchFrom = keyIndex + key.length;
+        continue;
+      }
+
+      var objectEnd = scanBalancedEnd(text, objectStart);
+      if (objectEnd === -1) break;
+
+      try {
+        var object = JSON.parse(text.slice(objectStart, objectEnd));
+        collectVideoUrlStrings(object, false, '', result);
+      } catch (error) {
+        // Ignore malformed object.
+      }
+      searchFrom = objectEnd;
+    }
+
+    return result;
   }
 
   function parseLooseVideoObjects(text, pinId) {
@@ -381,6 +431,10 @@
 
       if (text.indexOf('"videos"') !== -1) {
         candidates = candidates.concat(parseLooseVideoObjects(text, pinId));
+      }
+
+      if (text.indexOf('"storyPinData"') !== -1) {
+        candidates = candidates.concat(parseLooseObjectByKey(text, '"storyPinData"', pinId));
       }
     });
 

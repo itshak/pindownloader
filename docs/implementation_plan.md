@@ -151,7 +151,7 @@ No remote server, analytics, or credentials are used.
 
 Completed on 2026-10-29:
 
-- `npm test` — 9/9 unit tests passed, including Russian language selection.
+- `npm test` — 10/10 unit tests passed, including story-pin extraction and Russian language selection.
 - Playwright E2E, direct MP4 path — button appeared below the player, Chrome download completed,
   `ffprobe` reported H.264 720×1280 video and 44.1 kHz stereo AAC audio.
 - Playwright E2E, HLS-only path — HLS master playlist resolved to the 720p `expMp4` URL;
@@ -166,6 +166,9 @@ Completed on 2026-10-29:
   removed by a simulated React re-render, and after its media wrapper was replaced.
 - Russian UI — button label `Скачать видео`, Russian aria-label, and `Загрузка началась.` status
   were verified in Chromium with a Russian locale; the download still completed successfully.
+- Story pin (`1040753795155689812`) — button appeared with a desktop-style `blob:` video URL, and
+  the page-data fallback resolved HLS to a 720p MP4 with AAC audio.
+- Live story pin (`1040753795155689812`) — mobile Pinterest page downloaded the 720p MP4 with audio.
 
 Note: live testing used Pinterest's mobile layout because the logged-out desktop page is gated by
 a login modal. Desktop-style injection was verified with a browser fixture using a 420×630 player.
