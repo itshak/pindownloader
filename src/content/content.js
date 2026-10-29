@@ -191,8 +191,9 @@
   }
 
   function shouldFloatButton(target, targetRect) {
-    if (isStoryPinElement(target)) return true;
     var viewportHeight = window.innerHeight || 0;
+    if (targetRect.bottom + 56 <= viewportHeight) return false;
+    if (isStoryPinElement(target)) return true;
     return viewportHeight > 0 &&
       targetRect.height > viewportHeight * 0.6 &&
       targetRect.bottom > viewportHeight - 80;
@@ -200,12 +201,27 @@
 
   function setButtonLayout(targetRect, floating) {
     if (floating) {
+      var viewportWidth = window.innerWidth || 0;
+      var viewportHeight = window.innerHeight || 0;
+      var width = 320;
+      var left = (viewportWidth - width) / 2;
+      var top = viewportHeight - 72;
+
+      if (targetRect && targetRect.width >= 80) {
+        width = Math.max(220, Math.min(420, Math.round(targetRect.width), viewportWidth - 32));
+        left = targetRect.left + (targetRect.width - width) / 2;
+        top = targetRect.bottom + 8;
+      }
+
+      left = Math.max(16, Math.min(left, viewportWidth - width - 16));
+      top = Math.max(16, Math.min(top, viewportHeight - 72));
+
       host.style.position = 'fixed';
-      host.style.right = '16px';
-      host.style.bottom = '16px';
-      host.style.left = 'auto';
-      host.style.top = 'auto';
-      host.style.width = '220px';
+      host.style.left = Math.round(left) + 'px';
+      host.style.top = Math.round(top) + 'px';
+      host.style.right = 'auto';
+      host.style.bottom = 'auto';
+      host.style.width = Math.round(width) + 'px';
       host.style.maxWidth = 'calc(100vw - 32px)';
       host.style.margin = '0';
       host.style.zIndex = '2147483647';
@@ -289,9 +305,9 @@
     return host;
   }
 
-  function ensureFloatingButton() {
+  function ensureFloatingButton(target) {
     createHost();
-    setButtonLayout(null, true);
+    setButtonLayout(target ? target.getBoundingClientRect() : null, true);
     if (host.parentNode !== document.body) document.body.appendChild(host);
     hostAnchor = {
       target: null,

@@ -112,8 +112,9 @@ No remote server, analytics, or credentials are used.
 - Re-attach if Pinterest re-renders and removes the host.
 - Once attached, the button remains after playback ends, even if Pinterest hides or replaces the
   video element. It is removed only when leaving the pin URL.
-- On full-screen/story pins, or when the player is not measurable, the button is rendered as a
-  fixed bottom-right control so it stays visible. Standard pins keep the button below the video.
+- On full-screen/story pins, or when the player is not measurable, the button is fixed near the
+  bottom edge and centered to the video width so it stays visible. Standard pins keep the button
+  below the video.
 - If Chrome exposes only a `blob:` video URL or the `<video>` element is unmeasurable, a matched
   page video or the presence of any `<video>` still creates the fixed button. As a final fallback,
   every pin URL gets a fixed button even if no player or page video can be detected.
@@ -180,7 +181,7 @@ Completed on 2026-10-29:
 - Missing player and missing inline page data — fetching the pin HTML created the visible fixed
   button, which downloaded the 720p MP4 with audio.
 - Missing player, page data, and inline video — the unconditional pin-page fallback still created
-  a visible fixed button.
+  a visible, centered fixed button.
 - Media type — the story pin is a 13.16s H.264/AAC MP4, not a GIF.
 
 Note: live testing used Pinterest's mobile layout because the logged-out desktop page is gated by
