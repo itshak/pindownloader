@@ -112,6 +112,10 @@ No remote server, analytics, or credentials are used.
 - Re-attach if Pinterest re-renders and removes the host.
 - Once attached, the button remains after playback ends, even if Pinterest hides or replaces the
   video element. It is removed only when leaving the pin URL.
+- On full-screen/story pins, or when the player is not measurable, the button is rendered as a
+  fixed bottom-right control so it stays visible. Standard pins keep the button below the video.
+- If Chrome exposes only a `blob:` video URL or no usable `<video>` element, a matched page video
+  can still create the button, so downloading does not depend on the player implementation.
 - The UI is localized in English and Russian. Russian is selected when Chrome's UI/system
   language or the browser locale starts with `ru`.
 
@@ -168,7 +172,10 @@ Completed on 2026-10-29:
   were verified in Chromium with a Russian locale; the download still completed successfully.
 - Story pin (`1040753795155689812`) — button appeared with a desktop-style `blob:` video URL, and
   the page-data fallback resolved HLS to a 720p MP4 with AAC audio.
-- Live story pin (`1040753795155689812`) — mobile Pinterest page downloaded the 720p MP4 with audio.
+- Live story pin (`1040753795155689812`) — the button was visible inside a 390×844 viewport and
+  downloaded the 720p MP4 with audio.
+- No-player story pin fixture — the button appeared from page data alone and downloaded the same
+  720p MP4 with audio.
 
 Note: live testing used Pinterest's mobile layout because the logged-out desktop page is gated by
 a login modal. Desktop-style injection was verified with a browser fixture using a 420×630 player.

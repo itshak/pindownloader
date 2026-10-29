@@ -24,6 +24,8 @@
   var syncTimer = null;
   var lastHref = location.href;
   var pageCache = null;
+  var pageDataTarget = null;
+  var pageDataCheckedAt = 0;
   var downloadInFlight = false;
 
   function sendMessage(message) {
@@ -61,6 +63,8 @@
     currentPinId = pinId;
     currentVideo = null;
     pageCache = null;
+    pageDataTarget = null;
+    pageDataCheckedAt = 0;
     removeHost();
     clearTabMedia();
   }
@@ -102,8 +106,7 @@
       var closeupVideos = videos.filter(function (video) {
         return roots.some(function (root) { return root.contains(video); });
       });
-      if (!closeupVideos.length) return null;
-      videos = closeupVideos;
+      if (closeupVideos.length) videos = closeupVideos;
     }
 
     var candidates = videos.map(function (video, index) {
@@ -161,36 +164,132 @@
     return best;
   }
 
-  function ensureButton(target) {
+  function isStoryPinElement(element) {
+    for (var node = element; node && node !== document.body; node = node.parentElement) {
+      var testId = node.getAttribute && node.getAttribute('data-test-id');
+      var className = typeof node.className === 'string' ? node.className : '';
+      if (/story[-_]?pin|full[-_]?bleed/i.test((testId || '') + ' ' + className)) return true;
+    }
+    return false;
+  }
+
+  function shouldFloatButton(target, targetRect) {
+    if (isStoryPinElement(target)) return true;
+    var viewportHeight = window.innerHeight || 0;
+    return viewportHeight > 0 &&
+      targetRect.height > viewportHeight * 0.6 &&
+      targetRect.bottom > viewportHeight - 80;
+  }
+
+  function setButtonLayout(targetRect, floating) {
+    if (floating) {
+      host.style.position = 'fixed';
+      host.style.right = '16px';
+      host.style.bottom = '16px';
+      host.style.left = 'auto';
+      host.style.top = 'auto';
+      host.style.width = '220px';
+      host.style.maxWidth = 'calc(100vw - 32px)';
+      host.style.margin = '0';
+      host.style.zIndex = '2147483647';
+      return;
+    }
+
+    host.style.position = '';
+    host.style.right = '';
+    host.style.bottom = '';
+    host.style.left = '';
+    host.style.top = '';
+    host.style.zIndex = '';
+    host.style.width = targetRect.width >= 1 ? Math.round(targetRect.width) + 'px' : '100%';
+    host.style.maxWidth = '100%';
+    host.style.marginLeft = 'auto';
+    host.style.marginRight = 'auto';
+    host.style.margin = '12px auto 4px auto';
+  }
+
+  function findPageDataTarget(pinId) {
+    if (pageDataTarget && pageDataTarget.pinId === pinId && pageDataTarget.target.isConnected) {
+      return pageDataTarget.target;
+    }
+
+    var now = Date.now();
+    if (now - pageDataCheckedAt < 2500) return null;
+    pageDataCheckedAt = now;
+
+    var candidate = null;
+    try {
+      candidate = Extractor.extractFromDocument(document, pinId);
+    } catch (error) {
+      return null;
+    }
+    if (!candidate || !candidate.matched) return null;
+
+    var target = null;
+    var roots = findCloseupRoots();
+    for (var i = 0; i < roots.length; i += 1) {
+      var rect = roots[i].getBoundingClientRect();
+      if (rect.width >= 80 && rect.height >= 80) {
+        target = roots[i];
+        break;
+      }
+    }
+
+    if (!target) {
+      var player = document.querySelector('[data-test-id="web-video-player"]');
+      var node = player;
+      while (node && node !== document.body) {
+        var playerRect = node.getBoundingClientRect();
+        if (playerRect.width >= 80 && playerRect.height >= 80) {
+          target = node;
+          break;
+        }
+        node = node.parentElement;
+      }
+    }
+
+    if (!target) return null;
+
+    pageDataTarget = { pinId: pinId, target: target };
+    return target;
+  }
+
+  function ensureButton(target, forceFloat) {
     if (!host) {
       ui = UI.createButton(handleDownloadClick);
       host = ui.host;
     }
 
     var targetRect = target.getBoundingClientRect();
-    if (targetRect.width >= 1) {
-      host.style.width = Math.round(targetRect.width) + 'px';
-      host.style.maxWidth = '100%';
-      host.style.marginLeft = 'auto';
-      host.style.marginRight = 'auto';
+    var floating = Boolean(forceFloat) || shouldFloatButton(target, targetRect);
+    setButtonLayout(targetRect, floating);
+
+    if (floating) {
+      if (host.parentNode !== document.body) document.body.appendChild(host);
+    } else {
+      var alreadyPlaced = host.parentNode === target.parentNode &&
+        host.previousElementSibling === target;
+      if (!alreadyPlaced) target.insertAdjacentElement('afterend', host);
     }
 
-    var alreadyPlaced = host.parentNode === target.parentNode &&
-      host.previousElementSibling === target;
-
-    if (!alreadyPlaced) {
-      target.insertAdjacentElement('afterend', host);
-    }
     insertTarget = target;
     hostAnchor = {
       target: target,
       parent: host.parentNode,
-      nextSibling: host.nextSibling
+      nextSibling: host.nextSibling,
+      floating: floating
     };
   }
 
   function reattachHostWithoutVideo() {
     if (!host || !hostAnchor) return false;
+
+    if (hostAnchor.floating && document.body && document.body.isConnected) {
+      if (host.parentNode !== document.body) document.body.appendChild(host);
+      hostAnchor.parent = document.body;
+      hostAnchor.nextSibling = host.nextSibling;
+      return true;
+    }
 
     if (hostAnchor.target && hostAnchor.target.isConnected && hostAnchor.target.parentNode) {
       hostAnchor.target.insertAdjacentElement('afterend', host);
@@ -237,6 +336,13 @@
       currentVideo = null;
       if (host && host.isConnected) return;
       if (reattachHostWithoutVideo()) return;
+
+      var fallbackTarget = findPageDataTarget(currentPinId);
+      if (fallbackTarget) {
+        ensureButton(fallbackTarget, true);
+        return;
+      }
+
       removeHost();
       return;
     }
