@@ -4,7 +4,12 @@
   var Utils = globalThis.PinDownloaderUtils;
   var Extractor = globalThis.PinDownloaderExtractor;
   var UI = globalThis.PinDownloaderUI;
+  var I18n = globalThis.PinDownloaderI18n;
   if (!Utils || !Extractor || !UI) return;
+
+  function t(key, fallback) {
+    return I18n && I18n.t ? I18n.t(key, fallback) : fallback;
+  }
 
   var MESSAGE_DOWNLOAD = 'PIN_DOWNLOADER_DOWNLOAD';
   var MESSAGE_GET_MEDIA = 'PIN_DOWNLOADER_GET_MEDIA';
@@ -15,6 +20,7 @@
   var host = null;
   var ui = null;
   var insertTarget = null;
+  var hostAnchor = null;
   var syncTimer = null;
   var lastHref = location.href;
   var pageCache = null;
@@ -64,6 +70,7 @@
     host = null;
     ui = null;
     insertTarget = null;
+    hostAnchor = null;
   }
 
   function videoArea(video) {
@@ -175,6 +182,42 @@
       target.insertAdjacentElement('afterend', host);
     }
     insertTarget = target;
+    hostAnchor = {
+      target: target,
+      parent: host.parentNode,
+      nextSibling: host.nextSibling
+    };
+  }
+
+  function reattachHostWithoutVideo() {
+    if (!host || !hostAnchor) return false;
+
+    if (hostAnchor.target && hostAnchor.target.isConnected && hostAnchor.target.parentNode) {
+      hostAnchor.target.insertAdjacentElement('afterend', host);
+      hostAnchor.parent = host.parentNode;
+      hostAnchor.nextSibling = host.nextSibling;
+      return true;
+    }
+
+    if (hostAnchor.parent && hostAnchor.parent.isConnected) {
+      if (hostAnchor.nextSibling && hostAnchor.nextSibling.isConnected &&
+          hostAnchor.nextSibling.parentNode === hostAnchor.parent) {
+        hostAnchor.parent.insertBefore(host, hostAnchor.nextSibling);
+      } else {
+        hostAnchor.parent.appendChild(host);
+      }
+      hostAnchor.nextSibling = host.nextSibling;
+      return true;
+    }
+
+    var roots = findCloseupRoots();
+    if (roots.length && roots[0].isConnected) {
+      roots[0].appendChild(host);
+      hostAnchor = { target: null, parent: roots[0], nextSibling: null };
+      return true;
+    }
+
+    return false;
   }
 
   function sync() {
@@ -192,6 +235,8 @@
     var video = findBestVideo();
     if (!video) {
       currentVideo = null;
+      if (host && host.isConnected) return;
+      if (reattachHostWithoutVideo()) return;
       removeHost();
       return;
     }
@@ -295,13 +340,16 @@
 
   function friendlyError(error) {
     var message = String((error && error.message) || error || '');
+    if (message === 'NO_VIDEO' || /No downloadable video/i.test(message)) {
+      return t('noVideo', 'No downloadable video was found on this pin.');
+    }
     if (/only provides|HLS|merge/i.test(message)) {
-      return 'This video is only available as a stream that cannot be saved with audio yet.';
+      return t('hlsUnsupported', 'This video is only available as a stream that cannot be saved with audio yet.');
     }
-    if (/Failed to fetch|NetworkError|HTTP/i.test(message)) {
-      return 'Pinterest did not return the video. Please try again.';
+    if (/Failed to fetch|NetworkError|HTTP|AbortError|aborted/i.test(message)) {
+      return t('networkError', 'Pinterest did not return the video. Please try again.');
     }
-    return message || 'Could not download this video.';
+    return t('genericError', 'Could not download this video.');
   }
 
   async function downloadCandidate(candidate, pinId) {
@@ -324,20 +372,20 @@
     if (downloadInFlight || !ui) return;
     var pinId = Utils.getPinId(location.href);
     if (!pinId) {
-      ui.setState('error', 'Open a Pinterest pin to download its video.');
+      ui.setState('error', t('openPin', 'Open a Pinterest pin to download its video.'));
       return;
     }
 
     downloadInFlight = true;
-    ui.setState('busy', 'Preparing\u2026');
+    ui.setState('busy', t('preparing', 'Preparing\u2026'));
 
     try {
       var candidate = await findCandidate(pinId);
       if (!candidate) {
-        throw new Error('No downloadable video was found on this pin.');
+        throw new Error('NO_VIDEO');
       }
 
-      ui.setState('busy', 'Downloading\u2026');
+      ui.setState('busy', t('downloading', 'Downloading\u2026'));
       try {
         await downloadCandidate(candidate, pinId);
       } catch (error) {
@@ -353,7 +401,7 @@
         }
       }
 
-      if (ui) ui.setState('success', 'Download started.');
+      if (ui) ui.setState('success', t('downloadStarted', 'Download started.'));
     } catch (error) {
       if (ui) ui.setState('error', friendlyError(error));
     } finally {

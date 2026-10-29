@@ -1,0 +1,8 @@
+{
+  "extensionName": {
+    "message": "PinDownloader — Pinterest Video Downloader"
+  },
+  "extensionDescription": {
+    "message": "Adds a download button below videos on Pinterest pin pages and saves the MP4 with audio."
+  }
+}

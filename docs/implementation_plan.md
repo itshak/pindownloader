@@ -59,6 +59,9 @@ pindownloader/
 ├── docs/
 │   └── implementation_plan.md
 ├── icons/
+├── _locales/
+│   ├── en/messages.json     # extension name/description
+│   └── ru/messages.json
 ├── src/
 │   ├── content/
 │   │   ├── extractor.js    # pin data / video URL extraction
@@ -68,6 +71,7 @@ pindownloader/
 │   │   ├── media-tracker.js # record MP4/HLS requests per tab
 │   │   └── service-worker.js # download + HLS resolution
 │   └── shared/
+│       ├── i18n.js          # English/Russian UI strings
 │       └── utils.js
 └── tests/
 ```
@@ -106,7 +110,10 @@ No remote server, analytics, or credentials are used.
 - Button states: `Download video` → `Preparing…` → `Downloading…` → success/error message.
 - Re-run on Pinterest SPA navigation via `MutationObserver`, `popstate`, and a URL watcher.
 - Re-attach if Pinterest re-renders and removes the host.
-- Button is hidden/removed when leaving a pin page or when the page has no video.
+- Once attached, the button remains after playback ends, even if Pinterest hides or replaces the
+  video element. It is removed only when leaving the pin URL.
+- The UI is localized in English and Russian. Russian is selected when Chrome's UI/system
+  language or the browser locale starts with `ru`.
 
 ## Download pipeline
 
@@ -144,7 +151,7 @@ No remote server, analytics, or credentials are used.
 
 Completed on 2026-10-29:
 
-- `npm test` — 6/6 unit tests passed.
+- `npm test` — 9/9 unit tests passed, including Russian language selection.
 - Playwright E2E, direct MP4 path — button appeared below the player, Chrome download completed,
   `ffprobe` reported H.264 720×1280 video and 44.1 kHz stereo AAC audio.
 - Playwright E2E, HLS-only path — HLS master playlist resolved to the 720p `expMp4` URL;
@@ -155,6 +162,10 @@ Completed on 2026-10-29:
   the pin.
 - Filename generation — unit-tested to produce `Pinterest/<title>_<pinId>_<quality>.mp4` with
   filesystem-unsafe characters removed.
+- End-of-video behavior — button stayed visible after the video was hidden, after the host was
+  removed by a simulated React re-render, and after its media wrapper was replaced.
+- Russian UI — button label `Скачать видео`, Russian aria-label, and `Загрузка началась.` status
+  were verified in Chromium with a Russian locale; the download still completed successfully.
 
 Note: live testing used Pinterest's mobile layout because the logged-out desktop page is gated by
 a login modal. Desktop-style injection was verified with a browser fixture using a 420×630 player.

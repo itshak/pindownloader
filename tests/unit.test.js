@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 
 require('../src/shared/utils.js');
 require('../src/content/extractor.js');
@@ -120,4 +123,48 @@ test('builds a safe download filename', () => {
   });
   assert.equal(filename, 'Pinterest/A B test video_529524868708976544_720p.mp4');
   assert.ok(!/[\\:*?"<>|]/.test(filename));
+});
+
+function loadI18n(fakeChrome, fakeNavigator) {
+  const source = fs.readFileSync(path.join(__dirname, '../src/shared/i18n.js'), 'utf8');
+  const sandbox = {
+    chrome: fakeChrome,
+    navigator: fakeNavigator
+  };
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(source, sandbox);
+  return sandbox.PinDownloaderI18n;
+}
+
+test('uses Russian when the browser locale is Russian', () => {
+  const i18n = loadI18n(
+    { i18n: { getUILanguage: () => 'en-US' } },
+    { languages: ['ru-RU', 'en-US'], language: 'ru-RU' }
+  );
+  assert.equal(i18n.language, 'ru');
+  assert.equal(i18n.t('downloadVideo'), 'Скачать видео');
+  assert.equal(i18n.t('downloadStarted'), 'Загрузка началась.');
+});
+
+test('uses the OS language when Chrome exposes it', () => {
+  const i18n = loadI18n(
+    {
+      i18n: {
+        getSystemLanguage: () => 'ru-RU',
+        getUILanguage: () => 'en-US'
+      }
+    },
+    { languages: ['en-US'], language: 'en-US' }
+  );
+  assert.equal(i18n.language, 'ru');
+});
+
+test('falls back to English for non-Russian locales', () => {
+  const i18n = loadI18n(
+    { i18n: { getUILanguage: () => 'de-DE' } },
+    { languages: ['de-DE'], language: 'de-DE' }
+  );
+  assert.equal(i18n.language, 'en');
+  assert.equal(i18n.t('downloadVideo'), 'Download video');
 });

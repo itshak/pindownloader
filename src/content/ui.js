@@ -1,6 +1,12 @@
 (function (root) {
   'use strict';
 
+  var I18n = root.PinDownloaderI18n;
+
+  function t(key, fallback) {
+    return I18n && I18n.t ? I18n.t(key, fallback) : fallback;
+  }
+
   var STYLE = [
     ':host {',
     '  all: initial;',
@@ -79,8 +85,8 @@
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'pd-button';
-    button.setAttribute('aria-label', 'Download Pinterest video');
-    button.innerHTML = ICON + '<span class="pd-label">Download video</span>';
+    button.setAttribute('aria-label', t('downloadVideoAria', 'Download Pinterest video'));
+    button.innerHTML = ICON + '<span class="pd-label"></span>';
 
     var status = document.createElement('p');
     status.className = 'pd-status';
@@ -95,6 +101,7 @@
     var busy = false;
     var resetTimer = null;
     var label = button.querySelector('.pd-label');
+    label.textContent = t('downloadVideo', 'Download video');
 
     function clearResetTimer() {
       if (resetTimer !== null) {
@@ -110,22 +117,22 @@
       button.disabled = busy;
 
       if (state === 'busy') {
-        label.textContent = message || 'Preparing\u2026';
-        status.textContent = message && message !== 'Preparing\u2026' ? message : '';
+        label.textContent = message || t('preparing', 'Preparing\u2026');
+        status.textContent = '';
       } else if (state === 'success') {
-        label.textContent = 'Download video';
-        status.textContent = message || 'Download started';
+        label.textContent = t('downloadVideo', 'Download video');
+        status.textContent = message || t('downloadStarted', 'Download started.');
         status.classList.add('pd-success');
         resetTimer = setTimeout(function () {
           status.textContent = '';
           status.classList.remove('pd-success');
         }, 6000);
       } else if (state === 'error') {
-        label.textContent = 'Try again';
-        status.textContent = message || 'Could not download this video.';
+        label.textContent = t('tryAgain', 'Try again');
+        status.textContent = message || t('genericError', 'Could not download this video.');
         status.classList.add('pd-error');
       } else {
-        label.textContent = 'Download video';
+        label.textContent = t('downloadVideo', 'Download video');
         status.textContent = '';
       }
     }
