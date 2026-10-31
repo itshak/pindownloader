@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run unit tests
+        run: npm test
+      - name: Check JavaScript syntax
+        run: |
+          for file in src/background/*.js src/content/*.js src/shared/*.js tests/*.js; do
+            node --check "$file"
+          done
+      - name: Validate manifest and version
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('manifest.json', 'utf8'))"
+          node scripts/check-version.mjs "v$(node -p "require('./package.json').version")"
+
+  native-linux:
+    name: Linux native helper
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install cross compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build Linux helpers
+        run: |
+          bash native/linux/build-linux.sh x64
+          bash native/linux/build-linux.sh arm64
+      - name: Test Linux helper protocol
+        run: npm run test:native:linux
+      - name: Test native installers
+        run: npm run test:installers
+      - name: Check binary architectures
+        run: |
+          file dist/linux-x64/PinDownloaderClipboard | tee /tmp/linux-x64.txt
+          file dist/linux-arm64/PinDownloaderClipboard | tee /tmp/linux-arm64.txt
+          grep -Eq 'x86-64' /tmp/linux-x64.txt
+          grep -Eq 'ARM aarch64|AArch64' /tmp/linux-arm64.txt
+      - name: Check shell syntax
+        run: bash -n native/linux/build-linux.sh native/linux/install-linux.sh native/macos/build-macos.sh native/macos/install-macos.sh
+
+  native-macos:
+    name: macOS native helper (${{ matrix.arch }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build helper
+        run: bash native/macos/build-macos.sh ${{ matrix.arch }}
+      - name: Check binary architecture
+        run: |
+          file dist/macos-${{ matrix.arch }}/PinDownloaderClipboard
+          lipo -info dist/macos-${{ matrix.arch }}/PinDownloaderClipboard | tee /tmp/macos-${{ matrix.arch }}.txt
+          if [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            grep -Eq 'arm64' /tmp/macos-arm64.txt
+          else
+            grep -Eq 'x86_64' /tmp/macos-x64.txt
+          fi
+
+  native-windows:
+    name: Windows native helper (${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build helper
+        shell: pwsh
+        run: ./native/windows/build-windows.ps1 -Architecture ${{ matrix.arch }}
+      - name: Check published helper
+        shell: pwsh
+        run: |
+          $exe = "dist\windows-${{ matrix.arch }}\PinDownloaderClipboard.exe"
+          if (-not (Test-Path $exe)) { throw "Missing $exe" }
+          Get-Item $exe | Format-List Name, Length
+      - name: Check PowerShell syntax
+        shell: pwsh
+        run: |
+          foreach ($file in @('native/windows/install-windows.ps1', 'native/windows/build-windows.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | Out-String | Write-Error
+              exit 1
+            }
+          }

@@ -6,8 +6,12 @@ const Utils = globalThis.PinDownloaderUtils;
 const MediaTracker = globalThis.PinMediaTracker;
 
 const MESSAGE_DOWNLOAD = 'PIN_DOWNLOADER_DOWNLOAD';
+const MESSAGE_COPY_FILE = 'PIN_DOWNLOADER_COPY_FILE';
+const MESSAGE_COPY_PROGRESS = 'PIN_DOWNLOADER_COPY_PROGRESS';
 const MESSAGE_GET_MEDIA = 'PIN_DOWNLOADER_GET_MEDIA';
 const MESSAGE_CLEAR_MEDIA = 'PIN_DOWNLOADER_CLEAR_MEDIA';
+const NATIVE_HOST = 'com.pindownloader.clipboard';
+const COPY_TIMEOUT_MS = 10 * 60 * 1000;
 const HLS_CACHE_LIMIT = 50;
 const hlsCache = new Map();
 
@@ -190,14 +194,14 @@ function startDownload(url, filename) {
   });
 }
 
-async function handleDownload(message) {
+async function resolveMediaUrl(message) {
   const pinId = String(message.pinId || '');
   if (!/^\d+$/.test(pinId)) throw new Error('Invalid Pinterest pin ID.');
   if (typeof message.url !== 'string' || !Utils.isPinimgUrl(message.url)) {
     throw new Error('Invalid video URL.');
   }
   if (!/\/videos\//i.test(new URL(message.url).pathname)) {
-    throw new Error('Refusing to download a non-video Pinterest asset.');
+    throw new Error('Refusing to use a non-video Pinterest asset.');
   }
 
   let finalUrl = message.url;
@@ -214,20 +218,194 @@ async function handleDownload(message) {
   }
 
   if (!quality) quality = normalizeQuality(Utils.qualityFromUrl(finalUrl));
+  return { url: finalUrl, quality: quality };
+}
 
+async function handleDownload(message) {
+  const pinId = String(message.pinId || '');
+  const resolved = await resolveMediaUrl(message);
   const filename = Utils.buildDownloadFilename({
     title: message.title,
     pinId: pinId,
-    quality: quality
+    quality: resolved.quality
   });
 
-  const downloadId = await startDownload(finalUrl, filename);
+  const downloadId = await startDownload(resolved.url, filename);
   return {
     ok: true,
     downloadId: downloadId,
     filename: filename,
-    url: finalUrl,
-    quality: quality
+    url: resolved.url,
+    quality: resolved.quality
+  };
+}
+
+function createCodedError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function sendNativeMessage(message) {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.runtime.sendNativeMessage(NATIVE_HOST, message, (response) => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message));
+          return;
+        }
+        resolve(response);
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function pingNativeHelper() {
+  try {
+    const response = await sendNativeMessage({ action: 'ping' });
+    if (!response || !response.ok) {
+      throw new Error((response && response.error) || 'The clipboard helper did not respond.');
+    }
+    return response;
+  } catch (error) {
+    throw createCodedError(
+      'NATIVE_MISSING',
+      (error && error.message) || 'The clipboard helper is not installed.'
+    );
+  }
+}
+
+function getDownloadItem(downloadId) {
+  return new Promise((resolve, reject) => {
+    chrome.downloads.search({ id: downloadId }, (items) => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+      resolve(items && items.length ? items[0] : null);
+    });
+  });
+}
+
+function sendCopyProgress(tabId, payload) {
+  if (typeof tabId !== 'number') return;
+  try {
+    chrome.tabs.sendMessage(
+      tabId,
+      Object.assign({ type: MESSAGE_COPY_PROGRESS }, payload),
+      function () {
+        void chrome.runtime.lastError;
+      }
+    );
+  } catch (error) {
+    // The tab may have closed while the download was running.
+  }
+}
+
+async function waitForDownload(downloadId, tabId) {
+  const startedAt = Date.now();
+  let lastPercent = -1;
+
+  sendCopyProgress(tabId, {
+    stage: 'download',
+    receivedBytes: 0,
+    totalBytes: 0
+  });
+
+  while (Date.now() - startedAt < COPY_TIMEOUT_MS) {
+    const item = await getDownloadItem(downloadId);
+    if (!item) {
+      throw createCodedError('DOWNLOAD_FAILED', 'The Chrome download record disappeared.');
+    }
+
+    if (item.state === 'complete') {
+      return item;
+    }
+    if (item.state === 'interrupted') {
+      throw createCodedError(
+        'DOWNLOAD_FAILED',
+        item.error || 'Chrome could not finish downloading the video.'
+      );
+    }
+
+    const receivedBytes = Number(item.bytesReceived) || 0;
+    const totalBytes = Number(item.totalBytes) || Number(item.fileSize) || 0;
+    const percent = totalBytes > 0
+      ? Math.min(99, Math.max(0, Math.floor((receivedBytes / totalBytes) * 100)))
+      : null;
+
+    if (percent !== lastPercent) {
+      lastPercent = percent;
+      sendCopyProgress(tabId, {
+        stage: 'download',
+        receivedBytes: receivedBytes,
+        totalBytes: totalBytes,
+        percent: percent
+      });
+    }
+
+    await delay(400);
+  }
+
+  throw createCodedError('COPY_TIMEOUT', 'Copying the video timed out.');
+}
+
+async function handleCopyFile(message, sender) {
+  await pingNativeHelper();
+
+  const resolved = await resolveMediaUrl(message);
+  const pinId = String(message.pinId || '');
+  const filename = Utils.buildDownloadFilename({
+    title: message.title,
+    pinId: pinId,
+    quality: resolved.quality
+  });
+  const downloadId = await startDownload(resolved.url, filename);
+  const tabId = sender.tab && sender.tab.id;
+  const download = await waitForDownload(downloadId, tabId);
+
+  if (!download.filename) {
+    throw createCodedError('COPY_FAILED', 'Chrome did not report the downloaded file path.');
+  }
+
+  sendCopyProgress(tabId, { stage: 'copying' });
+
+  let nativeResult;
+  try {
+    nativeResult = await sendNativeMessage({
+      action: 'copyFile',
+      path: download.filename
+    });
+  } catch (error) {
+    const messageText = (error && error.message) || 'The clipboard helper failed.';
+    const code = /native messaging host not found/i.test(messageText)
+      ? 'NATIVE_MISSING'
+      : 'NATIVE_COPY_FAILED';
+    throw createCodedError(code, messageText);
+  }
+
+  if (!nativeResult || !nativeResult.ok) {
+    throw createCodedError(
+      'NATIVE_COPY_FAILED',
+      (nativeResult && nativeResult.error) || 'The clipboard helper could not copy the file.'
+    );
+  }
+
+  return {
+    ok: true,
+    downloadId: downloadId,
+    filename: download.filename,
+    bytes: Number(download.fileSize) || Number(download.bytesReceived) || Number(nativeResult.bytes) || 0,
+    url: resolved.url,
+    quality: resolved.quality
   };
 }
 
@@ -241,6 +419,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({
           ok: false,
           error: (error && error.message) || 'Could not download this video.'
+        });
+      });
+    return true;
+  }
+
+  if (message.type === MESSAGE_COPY_FILE) {
+    handleCopyFile(message, sender)
+      .then(sendResponse)
+      .catch((error) => {
+        sendResponse({
+          ok: false,
+          code: (error && error.code) || 'COPY_FAILED',
+          error: (error && error.message) || 'Could not copy the video file.'
         });
       });
     return true;

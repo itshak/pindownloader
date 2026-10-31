@@ -1,9 +1,12 @@
 {
   "name": "pindownloader",
-  "version": "1.1.5",
+  "version": "1.2.0",
   "private": true,
-  "description": "Chrome extension that downloads Pinterest pin videos with audio.",
+  "description": "Chrome and Edge extension that downloads Pinterest pin videos and copies MP4 files via native helpers.",
   "scripts": {
-    "test": "node --test tests/unit.test.js"
+    "test": "node --test tests/unit.test.js",
+    "test:native:linux": "node --test tests/native-linux.test.js",
+    "check:version": "node scripts/check-version.mjs",
+    "test:installers": "node --test tests/installers.test.js"
   }
 }

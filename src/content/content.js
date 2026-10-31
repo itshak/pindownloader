@@ -12,6 +12,8 @@
   }
 
   var MESSAGE_DOWNLOAD = 'PIN_DOWNLOADER_DOWNLOAD';
+  var MESSAGE_COPY_FILE = 'PIN_DOWNLOADER_COPY_FILE';
+  var MESSAGE_COPY_PROGRESS = 'PIN_DOWNLOADER_COPY_PROGRESS';
   var MESSAGE_GET_MEDIA = 'PIN_DOWNLOADER_GET_MEDIA';
   var MESSAGE_CLEAR_MEDIA = 'PIN_DOWNLOADER_CLEAR_MEDIA';
 
@@ -32,6 +34,8 @@
   var pageFetchAt = 0;
   var pageFetchAttempts = 0;
   var downloadInFlight = false;
+  var copyInFlight = false;
+  var copyStage = '';
 
   function sendMessage(message) {
     return new Promise(function (resolve, reject) {
@@ -75,6 +79,8 @@
     pageFetchPin = null;
     pageFetchAt = 0;
     pageFetchAttempts = 0;
+    copyInFlight = false;
+    copyStage = '';
     removeHost();
     clearTabMedia();
   }
@@ -299,7 +305,7 @@
 
   function createHost() {
     if (!host) {
-      ui = UI.createButton(handleDownloadClick);
+      ui = UI.createButton(handleDownloadClick, handleCopyClick);
       host = ui.host;
     }
     return host;
@@ -429,8 +435,9 @@
         return;
       }
 
-      if (findDocumentPageCandidate(currentPinId) || document.querySelector('video')) {
-        ensureFloatingButton();
+      var anyVideo = document.querySelector('video');
+      if (findDocumentPageCandidate(currentPinId) || anyVideo) {
+        ensureFloatingButton(anyVideo);
         return;
       }
 
@@ -566,8 +573,100 @@
     return response;
   }
 
+  function createCopyError(response) {
+    var error = new Error((response && response.error) || 'Could not copy the video file.');
+    error.code = response && response.code;
+    return error;
+  }
+
+  function friendlyCopyError(error) {
+    var message = String((error && error.message) || error || '');
+    var code = error && error.code;
+
+    if (code === 'NATIVE_MISSING' || /native messaging host not found/i.test(message)) {
+      return t('nativeHelperMissing', 'Clipboard helper is not installed. See native/README.md.');
+    }
+    if (code === 'COPY_TIMEOUT') {
+      return t('copyTimedOut', 'Copying the video timed out. Please try again.');
+    }
+    if (code === 'NATIVE_COPY_FAILED') {
+      return t('copyFileFailed', 'Could not put the video file on the clipboard.');
+    }
+    if (code === 'DOWNLOAD_FAILED' || /download record|interrupted/i.test(message)) {
+      return t('copyDownloadFailed', 'Could not download the video for copying.');
+    }
+    if (message === 'NO_VIDEO' || /No downloadable video/i.test(message)) {
+      return t('noVideo', 'No downloadable video was found on this pin.');
+    }
+    if (/only provides|HLS|merge/i.test(message)) {
+      return t('hlsUnsupported', 'This video is only available as a stream that cannot be saved with audio yet.');
+    }
+    if (/Failed to fetch|NetworkError|HTTP|AbortError|aborted/i.test(message)) {
+      return t('networkError', 'Pinterest did not return the video. Please try again.');
+    }
+    return t('copyFileFailed', 'Could not put the video file on the clipboard.');
+  }
+
+  function handleCopyProgress(message) {
+    if (!ui || !copyInFlight) return;
+
+    if (message.stage === 'download') {
+      if (copyStage !== 'download') return;
+      var percent = Number(message.percent);
+      if (isFinite(percent) && percent >= 0) {
+        ui.setCopyState(
+          'busy',
+          t('copyDownloadProgress', 'Downloading video\u2026 {percent}%')
+            .replace('{percent}', String(percent))
+        );
+      } else {
+        ui.setCopyState('busy', t('copyDownloading', 'Downloading video\u2026'));
+      }
+    } else if (message.stage === 'copying') {
+      if (copyStage !== 'download') return;
+      copyStage = 'copying';
+      ui.setCopyState('busy', t('copyingToClipboard', 'Copying to clipboard\u2026'));
+    }
+  }
+
+  async function handleCopyClick() {
+    if (copyInFlight || downloadInFlight || !ui) return;
+    var pinId = Utils.getPinId(location.href);
+    if (!pinId) {
+      ui.setCopyState('error', t('openPin', 'Open a Pinterest pin to download its video.'));
+      return;
+    }
+
+    copyInFlight = true;
+    copyStage = 'preparing';
+    ui.setCopyState('busy', t('copyPreparing', 'Preparing video\u2026'));
+
+    try {
+      var candidate = await findCandidate(pinId);
+      if (!candidate) throw new Error('NO_VIDEO');
+
+      copyStage = 'download';
+      var response = await sendMessage({
+        type: MESSAGE_COPY_FILE,
+        url: candidate.url,
+        kind: candidate.kind,
+        quality: candidate.quality,
+        title: Utils.cleanTitle(candidate.title) || fallbackTitle(),
+        pinId: pinId
+      });
+      if (!response || !response.ok) throw createCopyError(response);
+
+      if (ui) ui.setCopyState('success', t('videoCopied', 'Video copied to clipboard.'));
+    } catch (error) {
+      if (ui) ui.setCopyState('error', friendlyCopyError(error));
+    } finally {
+      copyInFlight = false;
+      copyStage = '';
+    }
+  }
+
   async function handleDownloadClick() {
-    if (downloadInFlight || !ui) return;
+    if (downloadInFlight || copyInFlight || !ui) return;
     var pinId = Utils.getPinId(location.href);
     if (!pinId) {
       ui.setState('error', t('openPin', 'Open a Pinterest pin to download its video.'));
@@ -607,6 +706,11 @@
     }
   }
 
+  chrome.runtime.onMessage.addListener(function (message) {
+    if (!message || message.type !== MESSAGE_COPY_PROGRESS) return;
+    handleCopyProgress(message);
+  });
+
   function installObservers() {
     var observer = new MutationObserver(function () {
       requestSync(300);
@@ -622,8 +726,10 @@
       if (location.href !== lastHref) {
         lastHref = location.href;
         requestSync(50);
+      } else if (host) {
+        requestSync(20);
       }
-    }, 800);
+    }, 1200);
   }
 
   lastHref = location.href;

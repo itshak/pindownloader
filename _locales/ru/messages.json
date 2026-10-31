@@ -3,6 +3,6 @@
     "message": "PinDownloader — загрузчик видео Pinterest"
   },
   "extensionDescription": {
-    "message": "Добавляет кнопку скачивания под видео на страницах пинов Pinterest и сохраняет MP4 со звуком."
+    "message": "Добавляет кнопки скачивания и копирования файла под видео на страницах пинов Pinterest."
   }
 }

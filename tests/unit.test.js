@@ -188,6 +188,8 @@ test('uses Russian when the browser locale is Russian', () => {
   assert.equal(i18n.language, 'ru');
   assert.equal(i18n.t('downloadVideo'), 'Скачать видео');
   assert.equal(i18n.t('downloadStarted'), 'Загрузка началась.');
+  assert.equal(i18n.t('copyVideo'), 'Копировать');
+  assert.equal(i18n.t('videoCopied'), 'Видео скопировано в буфер обмена.');
 });
 
 test('uses the OS language when Chrome exposes it', () => {
