@@ -5,8 +5,9 @@
 Implemented. The extension loads as an unpacked Manifest V3 extension in Chrome and Microsoft
 Edge, injects Shadow DOM download and copy-file controls below the active pin video, extracts the
 MP4 URL, and downloads a file with H.264 video and AAC audio. Browser flows and the native-messaging
-protocol have been tested with a mock host. The Linux helper and installers are tested locally;
-Windows and macOS native builds and clipboard paste still require CI/target-OS validation.
+protocol have been tested with a mock host. Linux helpers and installers are tested locally;
+Windows, macOS, and Linux native builds are validated in CI. Clipboard paste still needs manual
+validation on Windows and macOS.
 
 ## Goal
 
@@ -255,9 +256,11 @@ Completed through 2026-10-31:
   extension IDs, and per-browser uninstall removed only the selected browser registration.
 - Version check — `node scripts/check-version.mjs v1.2.0` accepted the current package/manifest
   version.
+- CI run `41153033856` built Linux x64/arm64, macOS arm64/x64, and Windows x64/arm64 helpers;
+  unit tests, Linux protocol tests, installer tests, and architecture checks passed.
 - Windows and macOS helper compilers are not available in this Linux environment. Their source,
-  build scripts, installers, and protocol are provided; CI builds and target-OS clipboard paste
-  remain to be verified.
+  build scripts, installers, and protocol are provided; actual clipboard paste still needs manual
+  validation on those systems.
 
 Note: live testing used Pinterest's mobile layout because the logged-out desktop page is gated by
 a login modal. Desktop-style injection was verified with a browser fixture using a 420×630 player.
