@@ -30,6 +30,6 @@ if ! command -v "$SWIFTC" >/dev/null 2>&1; then
 fi
 
 mkdir -p "$OUTPUT_DIR"
-"$SWIFTC" -O -target "$TARGET" -framework AppKit "$SOURCE" -o "$OUTPUT"
+"$SWIFTC" -O -parse-as-library -target "$TARGET" -framework AppKit "$SOURCE" -o "$OUTPUT"
 chmod 755 "$OUTPUT"
 echo "Built $OUTPUT"
