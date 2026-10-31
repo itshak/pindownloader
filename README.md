@@ -48,6 +48,9 @@ you use and registers the helper for Chrome, Edge, or both.
 | Windows | x64, arm64 | x64 | The x64 build also runs on Windows 11 ARM64 through emulation. |
 | Linux | x64, arm64 | not included | Requires `wl-clipboard` or `xclip` for Copy. |
 
+Tag releases default to macOS arm64 and Windows x64. The `v1.2.0` release was additionally built
+with all platforms, so it includes macOS x64, Windows arm64, and Linux x64/arm64 packages.
+
 **Download video** does not need the native helper. **Copy** does.
 
 ## Install from a release
@@ -211,7 +214,8 @@ A tag matching `vMAJOR.MINOR.PATCH` triggers `.github/workflows/release.yml`. Th
 
 To build every supported architecture, manually run the release workflow with
 `all_platforms=true`. That adds macOS x64, Windows arm64, Linux x64, and Linux arm64. The release
-workflow can also add the full set to an existing tag release.
+workflow can also add the full set to an existing tag release. The `v1.2.0` release was published
+this way, so all supported architectures are available for that tag.
 
 The CI workflow runs the unit tests and native builds on pushes and pull requests.
 

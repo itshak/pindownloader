@@ -6,8 +6,9 @@ Implemented. The extension loads as an unpacked Manifest V3 extension in Chrome 
 Edge, injects Shadow DOM download and copy-file controls below the active pin video, extracts the
 MP4 URL, and downloads a file with H.264 video and AAC audio. Browser flows and the native-messaging
 protocol have been tested with a mock host. Linux helpers and installers are tested locally;
-Windows, macOS, and Linux native builds are validated in CI. Clipboard paste still needs manual
-validation on Windows and macOS.
+Windows, macOS, and Linux native builds are validated in CI and published in the `v1.2.0`
+all-platform release. Clipboard paste still needs manual validation on Windows, macOS, and Linux
+desktops.
 
 ## Goal
 
@@ -258,9 +259,14 @@ Completed through 2026-10-31:
   version.
 - CI run `41153033856` built Linux x64/arm64, macOS arm64/x64, and Windows x64/arm64 helpers;
   unit tests, Linux protocol tests, installer tests, and architecture checks passed.
+- Release run `41153446361` built and published the full platform set for `v1.2.0`: Linux
+  x64/arm64, macOS arm64/x64, and Windows x64/arm64, plus the extension ZIP and `SHA256SUMS`.
+  Checksums verified, and package architectures were confirmed as ELF aarch64/x86-64, Mach-O
+  arm64/x86_64, and PE32+ ARM64/x86-64.
 - Windows and macOS helper compilers are not available in this Linux environment. Their source,
   build scripts, installers, and protocol are provided; actual clipboard paste still needs manual
-  validation on those systems.
+  validation on those systems. Linux clipboard integration has only been tested with a fake
+  `wl-copy` command.
 
 Note: live testing used Pinterest's mobile layout because the logged-out desktop page is gated by
 a login modal. Desktop-style injection was verified with a browser fixture using a 420×630 player.
@@ -279,8 +285,9 @@ a login modal. Desktop-style injection was verified with a browser fixture using
 ## Install
 
 For release installs, download the extension ZIP and native package for the platform from the
-GitHub Releases page. The default release contains the extension, macOS arm64, and Windows x64;
-manual all-platform releases add macOS x64, Windows arm64, and Linux x64/arm64.
+GitHub Releases page. Tag releases default to the extension, macOS arm64, and Windows x64;
+manual all-platform releases add macOS x64, Windows arm64, and Linux x64/arm64. The `v1.2.0`
+release includes the full platform set.
 
 1. Extract the extension ZIP.
 2. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
