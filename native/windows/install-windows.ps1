@@ -13,6 +13,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $HostName = 'com.pindownloader.clipboard'
+$DefaultExtensionId = 'cgfebhkdcjiikipcinokgmboblpehomk'
 $InstallDir = Join-Path $env:LOCALAPPDATA 'PinDownloader\native'
 $ManifestPath = Join-Path $InstallDir ($HostName + '.json')
 $RegistryRoots = @{
@@ -22,24 +23,6 @@ $RegistryRoots = @{
 $ExtensionPages = @{
     chrome = 'chrome://extensions'
     edge = 'edge://extensions'
-}
-
-function Select-Browser {
-    Write-Host 'Where should the clipboard helper be registered?'
-    Write-Host '  1) Chrome'
-    Write-Host '  2) Edge'
-    Write-Host '  3) Both'
-    $choice = Read-Host 'Choice [1]'
-    switch ($choice) {
-        '' { return 'chrome' }
-        '1' { return 'chrome' }
-        '2' { return 'edge' }
-        '3' { return 'both' }
-        'chrome' { return 'chrome' }
-        'edge' { return 'edge' }
-        'both' { return 'both' }
-        default { throw 'Invalid browser choice.' }
-    }
 }
 
 function Normalize-ExtensionId {
@@ -54,18 +37,8 @@ function Normalize-ExtensionId {
     return $normalized
 }
 
-function Read-ExtensionId {
-    param([string]$Label)
-    $value = Read-Host "Paste the 32-character $Label extension ID"
-    return Normalize-ExtensionId -Value $value -Label $Label
-}
-
 if (-not $Browser) {
-    if ($Uninstall) {
-        $Browser = 'both'
-    } else {
-        $Browser = Select-Browser
-    }
+    $Browser = 'both'
 }
 
 $BrowserNames = if ($Browser -eq 'both') { @('chrome', 'edge') } else { @($Browser) }
@@ -95,29 +68,23 @@ if ($Uninstall) {
 
 if ($ExtensionId) {
     $ExtensionId = Normalize-ExtensionId -Value $ExtensionId -Label 'browser'
-}
-
-if (($BrowserNames -contains 'chrome') -and -not $ChromeExtensionId) {
-    if ($ExtensionId) {
+    if (-not $ChromeExtensionId) {
         $ChromeExtensionId = $ExtensionId
-    } else {
-        $ChromeExtensionId = Read-ExtensionId -Label 'Chrome'
     }
-}
-if (($BrowserNames -contains 'edge') -and -not $EdgeExtensionId) {
-    if ($ExtensionId) {
+    if (-not $EdgeExtensionId) {
         $EdgeExtensionId = $ExtensionId
-    } else {
-        $EdgeExtensionId = Read-ExtensionId -Label 'Edge'
     }
 }
 
-if ($ChromeExtensionId) {
-    $ChromeExtensionId = Normalize-ExtensionId -Value $ChromeExtensionId -Label 'Chrome'
+if (-not $ChromeExtensionId) {
+    $ChromeExtensionId = $DefaultExtensionId
 }
-if ($EdgeExtensionId) {
-    $EdgeExtensionId = Normalize-ExtensionId -Value $EdgeExtensionId -Label 'Edge'
+if (-not $EdgeExtensionId) {
+    $EdgeExtensionId = $DefaultExtensionId
 }
+
+$ChromeExtensionId = Normalize-ExtensionId -Value $ChromeExtensionId -Label 'Chrome'
+$EdgeExtensionId = Normalize-ExtensionId -Value $EdgeExtensionId -Label 'Edge'
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 $ExePath = Join-Path $InstallDir 'PinDownloaderClipboard.exe'
@@ -202,5 +169,5 @@ foreach ($name in $BrowserNames) {
 
 $pages = $BrowserNames | ForEach-Object { $ExtensionPages[$_] }
 Write-Host "Installed PinDownloader clipboard helper: $ExePath"
-Write-Host "Restart the selected browser, then reload PinDownloader."
+Write-Host "Restart Chrome/Edge, then reload PinDownloader."
 Write-Host "Load the extension from $($pages -join ' or ') (Developer mode)."

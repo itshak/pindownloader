@@ -63,40 +63,29 @@ with all platforms, so it includes macOS x64, Windows arm64, and Linux x64/arm64
      select the extracted folder.
    - Edge: open `edge://extensions`, enable **Developer mode**, click **Load unpacked**, and select
      the extracted folder.
-5. Copy the extension ID shown on the extensions page.
-6. Download the native package for your OS and architecture.
-7. Extract it and run the installer with your browser and extension ID.
+5. Download the native package for your OS and architecture.
+6. Extract it and run the installer. It registers both Chrome and Edge automatically using the
+   extension ID built into the package; no ID or browser prompt is needed.
+7. Fully restart the browser and reload the extension.
+
+The extension ID is fixed by the public `key` in `manifest.json`, so it stays the same no matter
+where the extension folder is unpacked.
 
 ### Windows
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install-windows.ps1 -Browser chrome -ExtensionId YOUR_EXTENSION_ID
+powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
 ```
 
-For both browsers:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install-windows.ps1 -Browser both `
-  -ChromeExtensionId YOUR_CHROME_ID `
-  -EdgeExtensionId YOUR_EDGE_ID
-```
-
-If both browsers use the same unpacked folder, they usually share one ID and you can use
-`-ExtensionId` instead.
+Use `-Browser chrome` or `-Browser edge` to register only one browser.
 
 ### macOS
 
 ```bash
-./install-macos.sh --browser chrome --id YOUR_EXTENSION_ID
+./install-macos.sh
 ```
 
-For both browsers:
-
-```bash
-./install-macos.sh --browser both \
-  --chrome-id YOUR_CHROME_ID \
-  --edge-id YOUR_EDGE_ID
-```
+Use `--browser chrome` or `--browser edge` to register only one browser.
 
 ### Linux
 
@@ -113,14 +102,13 @@ sudo apt install xclip
 Then register the helper:
 
 ```bash
-./install-linux.sh --browser chrome --id YOUR_EXTENSION_ID
+./install-linux.sh
 ```
 
-Use `--browser edge` or `--browser both` for Edge. If `--browser` is omitted, the installer
-prompts interactively. Use `--uninstall` with the same browser selection to remove the helper
-registration.
+Use `--browser chrome` or `--browser edge` to register only one browser. Use `--uninstall` to
+remove the helper registration.
 
-After installing the helper, fully restart the selected browser and reload the extension.
+After installing the helper, fully restart the browser and reload the extension.
 
 ## Install from source
 
@@ -136,8 +124,6 @@ npm test
 ```powershell
 .\native\windows\build-windows.ps1 -Architecture x64
 powershell -ExecutionPolicy Bypass -File .\native\windows\install-windows.ps1 `
-  -Browser chrome `
-  -ExtensionId YOUR_EXTENSION_ID `
   -HelperPath .\dist\windows-x64\PinDownloaderClipboard.exe
 ```
 
@@ -148,17 +134,18 @@ no prebuilt executable is supplied.
 
 ```bash
 ./native/macos/build-macos.sh arm64
-./native/macos/install-macos.sh --browser chrome --id YOUR_EXTENSION_ID \
-  --helper ./dist/macos-arm64/PinDownloaderClipboard
+./native/macos/install-macos.sh --helper ./dist/macos-arm64/PinDownloaderClipboard
 ```
 
 ### Linux
 
 ```bash
 ./native/linux/build-linux.sh x64
-./native/linux/install-linux.sh --browser chrome --id YOUR_EXTENSION_ID \
-  --helper ./dist/linux-x64/PinDownloaderClipboard
+./native/linux/install-linux.sh --helper ./dist/linux-x64/PinDownloaderClipboard
 ```
+
+The installers default to the ID fixed by `manifest.json`. If you replace the manifest key, pass
+`-ExtensionId` on Windows or `--id` on macOS/Linux to override it.
 
 ## Native helper registration
 
@@ -174,7 +161,7 @@ and browser looks in its own manifest location, so the same extension works with
 
 ```bash
 npm test
-node scripts/check-version.mjs v1.2.0
+node scripts/check-version.mjs v1.3.0
 ```
 
 Native helper builds:

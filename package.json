@@ -1,6 +1,6 @@
 {
   "name": "pindownloader",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "Chrome and Edge extension that downloads Pinterest pin videos and copies MP4 files via native helpers.",
   "scripts": {

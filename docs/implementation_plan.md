@@ -200,8 +200,9 @@ No remote server, analytics, or credentials are used.
   - Navigating between pin/search URLs via SPA updates/removes the button correctly.
 - Native helper protocol (Linux): ping, MP4 file copy, URI encoding, and invalid paths tested
   with a fake clipboard command.
-- Installer behavior: Chrome/Edge selection, separate IDs, shared manifest origins, and
-  per-browser uninstall tested for the Linux and macOS installers.
+- Installer behavior: automatic both-browser registration with the built-in ID, Chrome/Edge
+  selection overrides, separate IDs, shared manifest origins, and per-browser uninstall tested for
+  the Linux and macOS installers.
 - Native builds: macOS arm64/x64, Windows x64/arm64, and Linux x64/arm64 built in CI.
 - Manual edge cases: slow loading, re-render, long/unicode titles, refresh, multiple tabs.
 
@@ -255,7 +256,13 @@ Completed through 2026-10-31:
   fake `wl-copy`, and rejected missing paths.
 - Native installers — Linux and macOS installers registered Chrome and Edge manifests with separate
   extension IDs, and per-browser uninstall removed only the selected browser registration.
-- Version check — `node scripts/check-version.mjs v1.2.0` accepted the current package/manifest
+- Automatic extension ID — `manifest.json` now contains a public `key` that fixes the extension ID
+  to `cgfebhkdcjiikipcinokgmboblpehomk` across unpacked folders. Installer tests verify the
+  key-derived ID matches the built-in installer default. Linux and macOS installers now register
+  both browsers by default with no ID or browser prompt.
+- Native copy with the fixed ID — the mock Native Messaging host was registered for the key-derived
+  ID and the copy flow still completed with `Video copied to clipboard.`
+- Version check — `node scripts/check-version.mjs v1.3.0` accepted the current package/manifest
   version.
 - CI run `41153033856` built Linux x64/arm64, macOS arm64/x64, and Windows x64/arm64 helpers;
   unit tests, Linux protocol tests, installer tests, and architecture checks passed.
@@ -293,8 +300,8 @@ release includes the full platform set.
 2. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
 3. Enable **Developer mode**.
 4. Click **Load unpacked** and select the extracted extension folder containing `manifest.json`.
-5. Run the native installer for the same browser and pass the extension ID shown on the
-   extensions page. The installer prompts for Chrome/Edge when no browser flag is supplied.
+5. Run the native installer. It registers Chrome and Edge automatically using the extension ID
+   fixed by the public `key` in `manifest.json`; no ID or browser prompt is needed.
 6. Open a Pinterest pin URL such as `https://www.pinterest.com/pin/529524868708976544/` and scroll
    to the video.
 7. Click **Download video** to save the MP4, or **Copy** to download it and place the file on the

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 HOST_NAME="com.pindownloader.clipboard"
+DEFAULT_EXTENSION_ID="cgfebhkdcjiikipcinokgmboblpehomk"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -d "$SCRIPT_DIR/../../src" ]]; then
   ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -25,17 +26,18 @@ UNINSTALL=0
 usage() {
   cat <<'EOF'
 Usage:
-  install-linux.sh --browser chrome|edge|both [options]
+  install-linux.sh [--browser chrome|edge|both] [options]
 
 Options:
-  --browser NAME       Browser to register: chrome, edge, or both.
-  --chrome-id ID       Chrome extension ID (32 characters).
-  --edge-id ID         Edge extension ID (32 characters).
-  --id ID              Use one ID for every selected browser.
+  --browser NAME       Browser to register: chrome, edge, or both (default: both).
+  --chrome-id ID       Override the Chrome extension ID (32 characters).
+  --edge-id ID         Override the Edge extension ID (32 characters).
+  --id ID              Override the ID for every selected browser.
   --helper PATH        Use a specific PinDownloaderClipboard binary.
   --uninstall          Remove the selected browser registration.
   -h, --help           Show this help.
 
+The built-in extension ID matches manifest.json, so no ID is needed.
 Copying requires wl-copy (Wayland) or xclip (X11).
 EOF
 }
@@ -53,21 +55,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-select_browser() {
-  local choice
-  echo "Where should the clipboard helper be registered?"
-  echo "  1) Chrome"
-  echo "  2) Edge"
-  echo "  3) Both"
-  read -r -p "Choice [1]: " choice
-  case "${choice:-1}" in
-    1|chrome|Chrome) BROWSER="chrome" ;;
-    2|edge|Edge) BROWSER="edge" ;;
-    3|both|Both) BROWSER="both" ;;
-    *) echo "Invalid choice." >&2; exit 1 ;;
-  esac
-}
-
 normalize_id() {
   local value="$1"
   value="$(printf '%s' "$value" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
@@ -77,25 +64,8 @@ normalize_id() {
   printf '%s' "$value"
 }
 
-ask_id() {
-  local label="$1"
-  local value=""
-  if [[ -t 0 ]]; then
-    read -r -p "Paste the 32-character $label extension ID: " value
-  fi
-  normalize_id "$value"
-}
-
 if [[ -z "$BROWSER" ]]; then
-  if [[ "$UNINSTALL" -eq 1 ]]; then
-    BROWSER="both"
-  elif [[ -t 0 ]]; then
-    select_browser
-  else
-    echo "--browser is required when not running interactively." >&2
-    usage >&2
-    exit 1
-  fi
+  BROWSER="both"
 fi
 
 case "$BROWSER" in
@@ -146,26 +116,12 @@ if [[ -n "$EDGE_ID" ]]; then
   }
 fi
 
-for browser in "${BROWSERS[@]}"; do
-  if [[ "$browser" == "chrome" && -z "$CHROME_ID" ]]; then
-    CHROME_ID="$COMMON_ID"
-    if [[ -z "$CHROME_ID" ]]; then
-      CHROME_ID="$(ask_id "Chrome")" || {
-        echo "A Chrome extension ID is required." >&2
-        exit 1
-      }
-    fi
-  fi
-  if [[ "$browser" == "edge" && -z "$EDGE_ID" ]]; then
-    EDGE_ID="$COMMON_ID"
-    if [[ -z "$EDGE_ID" ]]; then
-      EDGE_ID="$(ask_id "Edge")" || {
-        echo "An Edge extension ID is required." >&2
-        exit 1
-      }
-    fi
-  fi
-done
+if [[ "$BROWSER" == "chrome" || "$BROWSER" == "both" ]]; then
+  CHROME_ID="${CHROME_ID:-${COMMON_ID:-$DEFAULT_EXTENSION_ID}}"
+fi
+if [[ "$BROWSER" == "edge" || "$BROWSER" == "both" ]]; then
+  EDGE_ID="${EDGE_ID:-${COMMON_ID:-$DEFAULT_EXTENSION_ID}}"
+fi
 
 if [[ -z "$HELPER" ]]; then
   if [[ -x "$SCRIPT_DIR/PinDownloaderClipboard" ]]; then
@@ -234,5 +190,5 @@ for browser in "${BROWSERS[@]}"; do
 done
 
 echo "Installed PinDownloader clipboard helper: $BINARY_PATH"
-echo "Restart the selected browser, then reload PinDownloader."
+echo "Restart Chrome/Edge, then reload PinDownloader."
 echo "Load the extension from chrome://extensions or edge://extensions (Developer mode)."

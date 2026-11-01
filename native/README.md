@@ -12,7 +12,6 @@ not need browser-specific or OS-specific code.
 
 - Google Chrome or Microsoft Edge.
 - A local copy of this repository, or a release package.
-- The extension ID from `chrome://extensions` or `edge://extensions`.
 - Windows: Windows 10/11. Release builds are self-contained; the source installer can also use
   the built-in .NET Framework compiler.
 - macOS: macOS 11 or newer for release builds. Building from source needs Xcode Command Line
@@ -22,6 +21,10 @@ not need browser-specific or OS-specific code.
 The helper binaries are built by CI for release packages. Prebuilt binaries are not committed to
 the repository.
 
+The extension ID is fixed by the public `key` in `manifest.json` and is built into each installer,
+so users never need to copy or paste an ID. The current ID is
+`cgfebhkdcjiikipcinokgmboblpehomk`.
+
 ## Browser registration
 
 | Browser | Windows registry | macOS manifest directory | Linux manifest directory |
@@ -29,17 +32,13 @@ the repository.
 | Chrome | `HKCU\Software\Google\Chrome\NativeMessagingHosts` | `~/Library/Application Support/Google/Chrome/NativeMessagingHosts` | `~/.config/google-chrome/NativeMessagingHosts` |
 | Edge | `HKCU\Software\Microsoft\Edge\NativeMessagingHosts` | `~/Library/Application Support/Microsoft Edge/NativeMessagingHosts` | `~/.config/microsoft-edge/NativeMessagingHosts` |
 
-All installers accept `--browser chrome`, `--browser edge`, or `--browser both`. The Windows
-installer uses `-Browser`. If the browser is omitted, the installer prompts when interactive.
+All installers register both Chrome and Edge by default. Use `--browser chrome` or
+`--browser edge` to limit registration; the Windows installer uses `-Browser`. No ID or browser
+prompt is shown.
 
-If both browsers load the same unpacked extension folder, they normally use the same extension ID.
-If the IDs differ, pass both:
-
-```bash
-./install-linux.sh --browser both \
-  --chrome-id CHROME_ID \
-  --edge-id EDGE_ID
-```
+The installers use the fixed extension ID from `manifest.json`. For a custom build with a different
+key, override it with `-ExtensionId` on Windows or `--id` on macOS/Linux. The separate
+`--chrome-id`/`--edge-id` options remain available for unusual setups.
 
 ## How copying works
 
@@ -63,27 +62,18 @@ localized error.
 From a release package, open PowerShell next to `PinDownloaderClipboard.exe`:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install-windows.ps1 -Browser chrome -ExtensionId YOUR_EXTENSION_ID
-```
-
-For both browsers:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install-windows.ps1 -Browser both `
-  -ChromeExtensionId YOUR_CHROME_ID `
-  -EdgeExtensionId YOUR_EDGE_ID
+powershell -ExecutionPolicy Bypass -File .\install-windows.ps1
 ```
 
 The script copies the helper to `%LOCALAPPDATA%\PinDownloader\native`, writes the native messaging
-manifest, and registers the selected browser.
+manifest, and registers both Chrome and Edge. Use `-Browser chrome` or `-Browser edge` to register
+only one browser.
 
 From the repository, build first and pass the executable:
 
 ```powershell
 .\native\windows\build-windows.ps1 -Architecture x64
 powershell -ExecutionPolicy Bypass -File .\native\windows\install-windows.ps1 `
-  -Browser chrome `
-  -ExtensionId YOUR_EXTENSION_ID `
   -HelperPath .\dist\windows-x64\PinDownloaderClipboard.exe
 ```
 
@@ -99,26 +89,18 @@ From a release package:
 
 ```bash
 chmod +x ./install-macos.sh
-./install-macos.sh --browser chrome --id YOUR_EXTENSION_ID
-```
-
-For both browsers:
-
-```bash
-./install-macos.sh --browser both \
-  --chrome-id YOUR_CHROME_ID \
-  --edge-id YOUR_EDGE_ID
+./install-macos.sh
 ```
 
 The installer copies the helper to `~/Library/Application Support/PinDownloader/native` and writes
-the manifest into each selected browser's directory.
+the manifest into both Chrome and Edge. Use `--browser chrome` or `--browser edge` to register only
+one browser.
 
 From the repository:
 
 ```bash
 ./native/macos/build-macos.sh arm64
-./native/macos/install-macos.sh --browser chrome --id YOUR_EXTENSION_ID \
-  --helper ./dist/macos-arm64/PinDownloaderClipboard
+./native/macos/install-macos.sh --helper ./dist/macos-arm64/PinDownloaderClipboard
 ```
 
 Uninstall:
@@ -143,15 +125,17 @@ From a release package:
 
 ```bash
 chmod +x ./install-linux.sh ./PinDownloaderClipboard
-./install-linux.sh --browser chrome --id YOUR_EXTENSION_ID
+./install-linux.sh
 ```
+
+The installer registers both Chrome and Edge. Use `--browser chrome` or `--browser edge` to register
+only one browser.
 
 From the repository:
 
 ```bash
 ./native/linux/build-linux.sh x64
-./native/linux/install-linux.sh --browser chrome --id YOUR_EXTENSION_ID \
-  --helper ./dist/linux-x64/PinDownloaderClipboard
+./native/linux/install-linux.sh --helper ./dist/linux-x64/PinDownloaderClipboard
 ```
 
 The helper is installed under `${XDG_DATA_HOME:-$HOME/.local/share}/PinDownloader/native`.
@@ -164,13 +148,15 @@ Uninstall with:
 Linux Copy uses `text/uri-list`. Some applications do not accept file-list clipboard data; try
 pasting into a file manager or an application that accepts dropped files.
 
-## Finding the extension ID
+## Extension ID
 
-1. Open `chrome://extensions` or `edge://extensions`.
-2. Enable **Developer mode**.
-3. Find PinDownloader and copy its 32-character ID.
-4. If the extension is reloaded from a different folder, its unpacked ID may change; rerun the
-   installer with the new ID.
+The extension ID is fixed by the public `key` in `manifest.json`, so it does not change when the
+extension is unpacked from a different folder. The current ID is
+`cgfebhkdcjiikipcinokgmboblpehomk`.
+
+The installers use this ID automatically. There is no need to open the extensions page or paste an
+ID. If you change the manifest key for a custom build, override the installer with `-ExtensionId`
+on Windows or `--id` on macOS/Linux.
 
 ## Builds
 
@@ -193,7 +179,8 @@ and AppKit. Linux builds are static C binaries; arm64 cross-compilation needs
 
 **“Clipboard helper is not installed” / “Помощник буфера обмена не установлен”**
 
-- Confirm the extension ID used by the installer matches the one in the selected browser.
+- Confirm the installed extension is the one whose ID is built into the installer. If you overrode
+  the ID, make sure it matches the browser's extension page.
 - Restart the browser completely, then reload the extension.
 - Confirm the manifest exists in the selected browser's registration directory.
 - On Windows, confirm the registry value points to the manifest.
